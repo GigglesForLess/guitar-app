@@ -199,14 +199,26 @@ function populateScopeSelect() {
   });
 }
 
-function buildNotePicker() {
+// Fisher-Yates shuffle — used so the note picker's button order can't be
+// memorized by position instead of by reading the note name.
+function shuffledRange(n) {
+  const arr = Array.from({ length: n }, (_, i) => i);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function buildNotePicker(shuffle) {
   const names = noteNames();
+  const order = shuffle ? shuffledRange(names.length) : names.map((_, i) => i);
   notePickerEl.innerHTML = "";
-  names.forEach((name, pc) => {
+  order.forEach((pc) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.dataset.pc = String(pc);
-    btn.textContent = name;
+    btn.textContent = names[pc];
     notePickerEl.appendChild(btn);
   });
 }
@@ -309,10 +321,14 @@ function refreshFretboardDisplay() {
       quiz.target.stringIndex === stringIndex && quiz.target.fret === fret;
 
     // hide note names while guessing, so the player has to recall them.
-    // Reveal only briefly after they answer (locked).
-    if (isGuessModeRunning && !quiz.locked) {
-      btn.classList.add("name-hidden");
-    } else if (!state.showNames && !(isGuessModeRunning && quiz.locked)) {
+    // Once locked (just answered), reveal ONLY the target fret as feedback —
+    // every other note stays hidden so the rest of the board/string isn't
+    // given away.
+    if (isGuessModeRunning) {
+      if (!(quiz.locked && isThisTheTarget)) {
+        btn.classList.add("name-hidden");
+      }
+    } else if (!state.showNames) {
       btn.classList.add("name-hidden");
     }
 
@@ -346,7 +362,7 @@ toggleShowNamesEl.addEventListener("change", () => {
 toggleFlatsEl.addEventListener("change", () => {
   state.accidental = toggleFlatsEl.checked ? "flat" : "sharp";
   populateNoteBasedSelect(highlightNoteSelectEl, true);
-  buildNotePicker();
+  buildNotePicker(state.quiz.active);
   refreshFretboardDisplay();
   if (state.quiz.active) updateQuizPromptText();
 });
@@ -447,16 +463,19 @@ function nextQuestion() {
   feedbackMsgEl.textContent = "";
   feedbackMsgEl.className = "feedback-msg";
 
-  if (state.quiz.mode === "name") {
-    const stringIndex = randomStringForScope();
-    const fret = Math.floor(Math.random() * (state.frets + 1));
+  if (state.quiz.mode === "name" || state.quiz.mode === "sequence") {
+    let stringIndex, fret;
+    if (state.quiz.mode === "name") {
+      stringIndex = randomStringForScope();
+      fret = Math.floor(Math.random() * (state.frets + 1));
+    } else {
+      stringIndex = state.quiz.stringOrder[state.quiz.stringOrderIndex];
+      fret = state.quiz.sequenceFret;
+    }
     state.quiz.target = { stringIndex, fret, pc: pitchClassAt(stringIndex, fret) };
     updateQuizPromptText();
-  } else if (state.quiz.mode === "sequence") {
-    const stringIndex = state.quiz.stringOrder[state.quiz.stringOrderIndex];
-    const fret = state.quiz.sequenceFret;
-    state.quiz.target = { stringIndex, fret, pc: pitchClassAt(stringIndex, fret) };
-    updateQuizPromptText();
+    buildNotePicker(true); // reshuffle so button position can't be memorized
+    playFrequency(frequencyAt(stringIndex, fret)); // let them hear the new target
   } else {
     // "find" mode: pick a random note, then collect every position on the
     // board (within the current scope) that matches it.
@@ -533,7 +552,10 @@ function retrySequenceStep() {
   state.quiz.locked = false;
   feedbackMsgEl.textContent = "";
   feedbackMsgEl.className = "feedback-msg";
+  buildNotePicker(true); // reshuffle for the retry too
   refreshFretboardDisplay();
+  const target = state.quiz.target;
+  playFrequency(frequencyAt(target.stringIndex, target.fret));
 }
 
 /* ====================================================================
@@ -657,7 +679,7 @@ function updateStatsUI() {
 function init() {
   populateNoteBasedSelect(highlightNoteSelectEl, true);
   populateScopeSelect();
-  buildNotePicker();
+  buildNotePicker(false);
   buildFretboard();
 }
 
