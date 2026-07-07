@@ -49,17 +49,23 @@ const state = {
 
   quiz: {
     active: false,
-    mode: null,          // "find" | "name"
-    scope: "all",        // "all" or a string index (0-5)
+    mode: null,          // "find" | "name" | "sequence"
+    scope: "all",        // "all" or a string index (0-5) — used by "find"/"name"
     score: 0,
     streak: 0,
-    target: null,        // "name" mode: { stringIndex, fret, pc }
+    target: null,        // "name"/"sequence" modes: { stringIndex, fret, pc }
     findPc: null,        // "find" mode: pitch class being searched for
     findPositions: null, // "find" mode: Set of "stringIndex-fret" keys still to find
     findRefPosition: null, // "find" mode: one { stringIndex, fret } to use for playback
     findTotal: 0,
     findFound: 0,
     locked: false,       // true briefly after an answer, while feedback shows
+
+    // "String by String" mode: drills one string at a time, fret 0 upward,
+    // retrying a fret until it's answered correctly before moving on.
+    stringOrder: [5, 4, 3, 2, 1, 0], // STRINGS indices, low E -> high E
+    stringOrderIndex: 0,             // position within stringOrder
+    sequenceFret: 0,                 // current fret being drilled
   },
 };
 
@@ -74,6 +80,7 @@ const toggleSoundEl = document.getElementById("toggleSound");
 const highlightNoteSelectEl = document.getElementById("highlightNoteSelect");
 
 const modeButtonsEl = document.getElementById("modeButtons");
+const scopeFieldRowEl = document.getElementById("scopeFieldRow");
 const scopeSelectEl = document.getElementById("scopeSelect");
 const startQuizBtnEl = document.getElementById("startQuizBtn");
 const stopQuizBtnEl = document.getElementById("stopQuizBtn");
@@ -222,11 +229,13 @@ function buildFretboard() {
     const label = document.createElement("div");
     label.className = "string-label";
     label.textContent = s.label;
+    label.dataset.string = String(stringIndex);
     fretboardEl.appendChild(label);
 
     for (let fret = 0; fret <= fretCount; fret++) {
       const cell = document.createElement("div");
       cell.className = "fret-cell" + (fret === 0 ? " open-fret nut-cell" : "");
+      cell.dataset.string = String(stringIndex);
 
       const btn = document.createElement("button");
       btn.type = "button";
@@ -260,6 +269,21 @@ function buildFretboard() {
   refreshFretboardDisplay();
 }
 
+/* Shows only the string currently being drilled in "String by String" mode
+   (collapsing the rest), and restores the full board otherwise. */
+function updateStringVisibility() {
+  const soloMode = state.quiz.active && state.quiz.mode === "sequence";
+  const soloIndex = soloMode ? state.quiz.stringOrder[state.quiz.stringOrderIndex] : null;
+
+  fretboardEl.querySelectorAll(".string-label, .fret-cell").forEach((el) => {
+    el.classList.toggle("string-collapsed", soloIndex !== null && Number(el.dataset.string) !== soloIndex);
+  });
+
+  fretboardEl.style.gridTemplateRows = soloMode
+    ? "44px 20px"
+    : "repeat(" + STRINGS.length + ", 44px) 20px";
+}
+
 /* Updates note text / colors on existing cells without rebuilding the
    whole grid. Called whenever a toggle, quiz state, or highlight changes. */
 function refreshFretboardDisplay() {
@@ -277,20 +301,22 @@ function refreshFretboardDisplay() {
     // reset per-cell state classes, then re-apply what's relevant
     btn.classList.remove("name-hidden", "highlighted", "quiz-target", "found-correct");
 
-    const isNameQuizRunning = quiz.active && quiz.mode === "name";
-    const isThisTheNameTarget =
-      isNameQuizRunning && quiz.target &&
+    // "Name the Note" and "String by String" both quiz by hiding names and
+    // highlighting one target fret until it's answered
+    const isGuessModeRunning = quiz.active && (quiz.mode === "name" || quiz.mode === "sequence");
+    const isThisTheTarget =
+      isGuessModeRunning && quiz.target &&
       quiz.target.stringIndex === stringIndex && quiz.target.fret === fret;
 
-    // hide all note names while a "Name the Note" quiz is running, so the
-    // player has to guess. Reveal only briefly after they answer (locked).
-    if (isNameQuizRunning && !quiz.locked) {
+    // hide note names while guessing, so the player has to recall them.
+    // Reveal only briefly after they answer (locked).
+    if (isGuessModeRunning && !quiz.locked) {
       btn.classList.add("name-hidden");
-    } else if (!state.showNames && !(isNameQuizRunning && quiz.locked)) {
+    } else if (!state.showNames && !(isGuessModeRunning && quiz.locked)) {
       btn.classList.add("name-hidden");
     }
 
-    if (isThisTheNameTarget && !quiz.locked) {
+    if (isThisTheTarget && !quiz.locked) {
       btn.classList.add("quiz-target");
     }
 
@@ -305,6 +331,8 @@ function refreshFretboardDisplay() {
       btn.classList.remove("name-hidden");
     }
   });
+
+  updateStringVisibility();
 }
 
 /* ====================================================================
@@ -347,6 +375,9 @@ modeButtonsEl.addEventListener("click", (e) => {
   if (!btn || state.quiz.active) return;
   state.quiz.mode = btn.dataset.mode;
   [...modeButtonsEl.children].forEach((b) => b.classList.toggle("active", b === btn));
+  // "String by String" always progresses low E -> high E itself, so the
+  // manual String scope picker doesn't apply
+  scopeFieldRowEl.hidden = state.quiz.mode === "sequence";
 });
 
 function randomStringForScope() {
@@ -358,7 +389,7 @@ function randomStringForScope() {
 
 function startQuiz() {
   if (!state.quiz.mode) {
-    flashPrompt("Pick a mode first: Find the Note or Name the Note.");
+    flashPrompt("Pick a mode first: Find the Note, Name the Note, or String by String.");
     return;
   }
   state.quiz.scope = scopeSelectEl.value;
@@ -366,6 +397,8 @@ function startQuiz() {
   state.quiz.score = 0;
   state.quiz.streak = 0;
   state.quiz.locked = false;
+  state.quiz.stringOrderIndex = 0;
+  state.quiz.sequenceFret = 0;
   updateStatsUI();
 
   modeButtonsEl.querySelectorAll(".mode-btn").forEach((b) => (b.disabled = true));
@@ -373,7 +406,7 @@ function startQuiz() {
   highlightNoteSelectEl.disabled = true;
   startQuizBtnEl.hidden = true;
   stopQuizBtnEl.hidden = false;
-  notePickerEl.hidden = state.quiz.mode !== "name";
+  notePickerEl.hidden = state.quiz.mode === "find";
   playTargetBtnEl.hidden = false;
 
   nextQuestion();
@@ -384,7 +417,10 @@ function stopQuiz() {
   state.quiz.target = null;
   state.quiz.findPc = null;
   state.quiz.findPositions = null;
+  state.quiz.findRefPosition = null;
   state.quiz.locked = false;
+  state.quiz.stringOrderIndex = 0;
+  state.quiz.sequenceFret = 0;
 
   modeButtonsEl.querySelectorAll(".mode-btn").forEach((b) => (b.disabled = false));
   scopeSelectEl.disabled = false;
@@ -414,6 +450,11 @@ function nextQuestion() {
   if (state.quiz.mode === "name") {
     const stringIndex = randomStringForScope();
     const fret = Math.floor(Math.random() * (state.frets + 1));
+    state.quiz.target = { stringIndex, fret, pc: pitchClassAt(stringIndex, fret) };
+    updateQuizPromptText();
+  } else if (state.quiz.mode === "sequence") {
+    const stringIndex = state.quiz.stringOrder[state.quiz.stringOrderIndex];
+    const fret = state.quiz.sequenceFret;
     state.quiz.target = { stringIndex, fret, pc: pitchClassAt(stringIndex, fret) };
     updateQuizPromptText();
   } else {
@@ -450,12 +491,49 @@ function updateQuizPromptText() {
   const names = noteNames();
   if (state.quiz.mode === "name") {
     quizPromptEl.textContent = "What note is highlighted?";
+  } else if (state.quiz.mode === "sequence") {
+    const stringIndex = state.quiz.stringOrder[state.quiz.stringOrderIndex];
+    quizPromptEl.textContent =
+      "String " + (state.quiz.stringOrderIndex + 1) + "/6 — " + STRINGS[stringIndex].longLabel +
+      " (fret " + state.quiz.sequenceFret + " of " + state.frets + ")";
   } else {
     const found = state.quiz.findFound;
     const total = state.quiz.findTotal;
     quizPromptEl.textContent =
       "Find all " + names[state.quiz.findPc] + " notes  (" + found + "/" + total + ")";
   }
+}
+
+/* Advances "String by String" mode after a correct answer: next fret, or
+   the next string once the current one is finished, or a finish message
+   once every string is done. */
+function advanceSequence() {
+  state.quiz.sequenceFret++;
+
+  if (state.quiz.sequenceFret > state.frets) {
+    state.quiz.sequenceFret = 0;
+    state.quiz.stringOrderIndex++;
+
+    if (state.quiz.stringOrderIndex >= state.quiz.stringOrder.length) {
+      state.quiz.stringOrderIndex = state.quiz.stringOrder.length - 1;
+      state.quiz.locked = true;
+      quizPromptEl.textContent = "All six strings complete!";
+      refreshFretboardDisplay();
+      setTimeout(stopQuiz, CONFIG.nextQuestionDelayMs * 2);
+      return;
+    }
+  }
+
+  nextQuestion();
+}
+
+/* Re-asks the same fret in "String by String" mode after a wrong answer,
+   so the player must get it right before moving on. */
+function retrySequenceStep() {
+  state.quiz.locked = false;
+  feedbackMsgEl.textContent = "";
+  feedbackMsgEl.className = "feedback-msg";
+  refreshFretboardDisplay();
 }
 
 /* ====================================================================
@@ -502,11 +580,12 @@ fretboardEl.addEventListener("click", (e) => {
   }
 });
 
-// clicking a note-name button (used by "Name the Note" mode)
+// clicking a note-name button (used by "Name the Note" and "String by String" modes)
 notePickerEl.addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
-  if (!state.quiz.active || state.quiz.mode !== "name" || state.quiz.locked) return;
+  const isGuessMode = state.quiz.mode === "name" || state.quiz.mode === "sequence";
+  if (!state.quiz.active || !isGuessMode || state.quiz.locked) return;
 
   const guessedPc = Number(btn.dataset.pc);
   const target = state.quiz.target;
@@ -537,14 +616,21 @@ notePickerEl.addEventListener("click", (e) => {
 
   updateStatsUI();
   refreshFretboardDisplay(); // reveals the target's note name (locked = true)
-  setTimeout(nextQuestion, CONFIG.nextQuestionDelayMs);
+
+  if (state.quiz.mode === "sequence") {
+    // "String by String" retries the same fret until correct, instead of
+    // always moving on to a new random question
+    setTimeout(correct ? advanceSequence : retrySequenceStep, CONFIG.nextQuestionDelayMs);
+  } else {
+    setTimeout(nextQuestion, CONFIG.nextQuestionDelayMs);
+  }
 });
 
 // manual "play target note" button next to the quiz prompt
 playTargetBtnEl.addEventListener("click", () => {
   if (!state.quiz.active) return;
 
-  if (state.quiz.mode === "name" && state.quiz.target) {
+  if ((state.quiz.mode === "name" || state.quiz.mode === "sequence") && state.quiz.target) {
     playFrequency(frequencyAt(state.quiz.target.stringIndex, state.quiz.target.fret));
   } else if (state.quiz.mode === "find" && state.quiz.findRefPosition) {
     playFrequency(frequencyAt(state.quiz.findRefPosition.stringIndex, state.quiz.findRefPosition.fret));

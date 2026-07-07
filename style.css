@@ -110,6 +110,7 @@ html, body {
   gap: 10px;
   padding: 10px 0 2px;
 }
+.field-row[hidden] { display: none; }
 
 .field-row label { color: var(--text); font-size: 0.95rem; }
 
@@ -292,6 +293,11 @@ button {
 
 .fret-cell.nut-cell {
   border-right: 3px solid var(--nut-color);
+}
+
+/* used by "String by String" mode to show only the string being drilled */
+.string-collapsed {
+  display: none;
 }
 
 /* the horizontal string line running through each row */
