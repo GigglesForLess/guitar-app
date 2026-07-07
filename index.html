@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Fretboard Trainer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <header class="app-header">
+    <h1>Fretboard Trainer</h1>
+    <p class="subtitle">Learn every note on the neck &mdash; not just look at a chart.</p>
+  </header>
+
+  <!-- ============================================================
+       CONTROLS: learning toggles + practice/quiz setup
+       ============================================================ -->
+  <section class="controls">
+
+    <div class="control-card" id="learningControls">
+      <h2>Learning</h2>
+
+      <label class="toggle-row">
+        <span>Show note names</span>
+        <input type="checkbox" id="toggleShowNames" checked>
+      </label>
+
+      <label class="toggle-row">
+        <span>Use flats (&#9837;) instead of sharps (&#9839;)</span>
+        <input type="checkbox" id="toggleFlats">
+      </label>
+
+      <label class="toggle-row">
+        <span>Show frets 0&ndash;24</span>
+        <input type="checkbox" id="toggleFrets24">
+      </label>
+
+      <div class="field-row">
+        <label for="highlightNoteSelect">Highlight a note</label>
+        <select id="highlightNoteSelect"></select>
+      </div>
+    </div>
+
+    <div class="control-card" id="quizControls">
+      <h2>Practice</h2>
+
+      <div class="button-row" id="modeButtons">
+        <button class="mode-btn" data-mode="find" type="button">Find the Note</button>
+        <button class="mode-btn" data-mode="name" type="button">Name the Note</button>
+      </div>
+
+      <div class="field-row">
+        <label for="scopeSelect">String</label>
+        <select id="scopeSelect"></select>
+      </div>
+
+      <div class="button-row">
+        <button id="startQuizBtn" class="primary-btn" type="button">Start Quiz</button>
+        <button id="stopQuizBtn" class="secondary-btn" type="button" hidden>Stop Quiz</button>
+      </div>
+
+      <div id="quizPrompt" class="quiz-prompt" aria-live="polite">Choose a mode and press Start Quiz.</div>
+
+      <div id="notePicker" class="note-picker" hidden></div>
+
+      <div class="stats-row">
+        <span class="stat">Score <b id="scoreVal">0</b></span>
+        <span class="stat">Streak <b id="streakVal">0</b></span>
+        <span id="feedbackMsg" class="feedback-msg" aria-live="polite"></span>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============================================================
+       FRETBOARD (built dynamically in script.js)
+       ============================================================ -->
+  <section class="fretboard-section">
+    <div class="fretboard-scroll">
+      <div class="fretboard" id="fretboard"></div>
+    </div>
+  </section>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

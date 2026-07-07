@@ -1,0 +1,402 @@
+/* ==================================================================
+   COLOR / THEME VARIABLES
+   Change note colors, backgrounds, accents, etc. all in one place.
+   ================================================================== */
+:root {
+  --bg: #0f1216;
+  --panel-bg: #171b21;
+  --panel-border: #262c35;
+  --text: #eef1f5;
+  --muted: #8b93a1;
+
+  --string-color: #4b5563;         /* the fretboard string lines */
+  --fret-wire: #333a44;            /* vertical fret wires */
+  --nut-color: #cfd4dc;            /* the nut (fret 0 boundary) */
+
+  --note-bg: #1f2530;              /* default note dot background */
+  --note-bg-hover: #2a3140;
+  --note-text: #dfe4ea;
+  --note-open-bg: #232a36;         /* open string (fret 0) dot */
+
+  --marker-color: #2c333e;         /* fret position dots under the board */
+
+  --accent: #4da3ff;               /* primary accent (buttons, focus) */
+  --accent-hover: #3d8fe6;
+  --highlight-color: #b478ff;      /* "highlight this note" study color */
+  --quiz-target-color: #ffb84d;    /* the fret being quizzed in Name mode */
+
+  --correct: #35d07f;              /* correct answer feedback */
+  --wrong: #ff5c5c;                /* wrong answer feedback */
+
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.app-header h1 {
+  margin: 0 0 4px;
+  font-size: 1.6rem;
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* ==================================================================
+   CONTROL CARDS
+   ================================================================== */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.control-card {
+  flex: 1 1 320px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.control-card h2 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  font-size: 0.98rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--panel-border);
+}
+.toggle-row:last-of-type { border-bottom: none; }
+
+.toggle-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0 2px;
+}
+
+.field-row label { color: var(--text); font-size: 0.95rem; }
+
+select {
+  background: var(--note-bg);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  min-width: 170px;
+  min-height: 44px;
+}
+
+/* ==================================================================
+   BUTTONS (kept large for comfortable phone tapping)
+   ================================================================== */
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0 4px;
+}
+
+.mode-btn,
+.primary-btn,
+.secondary-btn {
+  flex: 1 1 auto;
+  min-height: 46px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: var(--note-bg);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+}
+.mode-btn:hover,
+.secondary-btn:hover { background: var(--note-bg-hover); }
+.mode-btn:active,
+.primary-btn:active,
+.secondary-btn:active { transform: scale(0.97); }
+
+.mode-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06121f;
+}
+
+.primary-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06121f;
+}
+.primary-btn:hover { background: var(--accent-hover); }
+
+.secondary-btn { background: transparent; }
+
+.quiz-prompt {
+  min-height: 24px;
+  margin: 12px 0 10px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  transition: opacity 0.15s ease;
+}
+
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.stats-row .stat b { color: var(--text); font-size: 1.05rem; margin-left: 4px; }
+
+.feedback-msg {
+  font-weight: 700;
+  min-height: 20px;
+}
+.feedback-msg.correct { color: var(--correct); }
+.feedback-msg.wrong { color: var(--wrong); }
+
+/* Note picker used by "Name the Note" mode */
+.note-picker {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.note-picker[hidden] { display: none; }
+
+.note-picker button {
+  min-height: 46px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: var(--note-bg);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.note-picker button:hover { background: var(--note-bg-hover); }
+.note-picker button:active { transform: scale(0.95); }
+
+/* ==================================================================
+   FRETBOARD
+   ================================================================== */
+.fretboard-section {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 14px 8px;
+}
+
+.fretboard-scroll {
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.fretboard {
+  display: grid;
+  /* grid-template-columns is set inline by script.js based on fret count */
+  align-items: stretch;
+  min-width: max-content;
+}
+
+.string-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--muted);
+  padding: 0 8px;
+  min-width: 40px;
+}
+
+.fret-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-right: 1px solid var(--fret-wire);
+}
+
+.fret-cell.nut-cell {
+  border-right: 3px solid var(--nut-color);
+}
+
+/* the horizontal string line running through each row */
+.fret-cell::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: var(--string-color);
+  transform: translateY(-50%);
+  z-index: 0;
+}
+
+.note-btn {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  background: var(--note-bg);
+  color: var(--note-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.fret-cell.open-fret .note-btn {
+  background: var(--note-open-bg);
+}
+
+.note-btn:hover {
+  background: var(--note-bg-hover);
+  transform: scale(1.08);
+}
+
+.note-btn.name-hidden {
+  color: transparent;
+}
+
+/* study mode: highlight every occurrence of a chosen note */
+.note-btn.highlighted {
+  background: var(--highlight-color);
+  color: #1a0d2b;
+  box-shadow: 0 0 0 3px rgba(180, 120, 255, 0.25);
+}
+
+/* the fret currently being quizzed in "Name the Note" mode */
+.note-btn.quiz-target {
+  background: var(--quiz-target-color);
+  color: #2b1900;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* while a "Name the Note" question is unanswered, the target's letter must
+   stay hidden even though it also has the (higher-contrast) quiz-target
+   background — this rule's extra class beats .quiz-target's specificity */
+.note-btn.quiz-target.name-hidden {
+  color: transparent;
+}
+
+.note-btn.found-correct {
+  background: var(--correct);
+  color: #06210f;
+}
+
+.note-btn.flash-correct {
+  animation: flash-good 0.5s ease;
+}
+
+.note-btn.flash-wrong {
+  animation: flash-bad 0.5s ease;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 184, 77, 0.55); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 184, 77, 0); }
+}
+
+@keyframes flash-good {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); background: var(--correct); color: #06210f; }
+  100% { transform: scale(1); }
+}
+
+@keyframes flash-bad {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); background: var(--wrong); color: #2b0606; }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+/* fret position marker dots below the board */
+.fret-markers-row { display: contents; }
+
+.marker-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 0 2px;
+}
+
+.marker-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--marker-color);
+}
+
+.fret-number {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 2px 0 6px;
+}
+
+/* ==================================================================
+   RESPONSIVE TWEAKS
+   ================================================================== */
+@media (max-width: 640px) {
+  .app-header h1 { font-size: 1.3rem; }
+  .control-card { padding: 14px; }
+  .note-btn { width: 30px; height: 30px; font-size: 0.72rem; }
+  .string-label { min-width: 32px; font-size: 0.78rem; }
+  .note-picker { grid-template-columns: repeat(4, 1fr); }
+}
