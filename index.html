@@ -38,6 +38,11 @@
         <input type="checkbox" id="toggleFrets24">
       </label>
 
+      <label class="toggle-row">
+        <span>Sound</span>
+        <input type="checkbox" id="toggleSound" checked>
+      </label>
+
       <div class="field-row">
         <label for="highlightNoteSelect">Highlight a note</label>
         <select id="highlightNoteSelect"></select>
@@ -62,7 +67,10 @@
         <button id="stopQuizBtn" class="secondary-btn" type="button" hidden>Stop Quiz</button>
       </div>
 
-      <div id="quizPrompt" class="quiz-prompt" aria-live="polite">Choose a mode and press Start Quiz.</div>
+      <div class="quiz-prompt-row">
+        <div id="quizPrompt" class="quiz-prompt" aria-live="polite">Choose a mode and press Start Quiz.</div>
+        <button id="playTargetBtn" class="icon-btn" type="button" hidden aria-label="Play target note">&#128266;</button>
+      </div>
 
       <div id="notePicker" class="note-picker" hidden></div>
 

@@ -13,6 +13,9 @@ const CONFIG = {
   pointsPerNamedCorrect: 10, // "Name the Note" mode: points for a correct guess
   pointsPerFindCorrect: 5,   // "Find the Note" mode: points per correct instance found
   nextQuestionDelayMs: 900,  // pause after an answer before the next question
+  noteAttackSeconds: 0.005, // synth envelope: time to reach full volume
+  noteReleaseSeconds: 0.7,  // synth envelope: time to decay to silence
+  noteVolume: 0.3,          // synth envelope: peak gain (0-1)
 };
 
 /* Note names, indexed by pitch class 0-11 (C=0 ... B=11). Every note in
@@ -23,15 +26,15 @@ const NOTES_FLAT  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb",
 
 /* Standard tuning, listed top-to-bottom the way a tab/fretboard chart is
    usually drawn: high e string on top, low E string on bottom.
-   `pc` = open-string pitch class. Edit this array to support alternate
-   tunings later. */
+   `pc` = open-string pitch class. `freq` = real open-string pitch in Hz,
+   used for audio playback. Edit this array to support alternate tunings later. */
 const STRINGS = [
-  { label: "e", longLabel: "High E (1st)", pc: 4 },
-  { label: "B", longLabel: "B (2nd)", pc: 11 },
-  { label: "G", longLabel: "G (3rd)", pc: 7 },
-  { label: "D", longLabel: "D (4th)", pc: 2 },
-  { label: "A", longLabel: "A (5th)", pc: 9 },
-  { label: "E", longLabel: "Low E (6th)", pc: 4 },
+  { label: "e", longLabel: "High E (1st)", pc: 4, freq: 329.63 },
+  { label: "B", longLabel: "B (2nd)", pc: 11, freq: 246.94 },
+  { label: "G", longLabel: "G (3rd)", pc: 7, freq: 196.00 },
+  { label: "D", longLabel: "D (4th)", pc: 2, freq: 146.83 },
+  { label: "A", longLabel: "A (5th)", pc: 9, freq: 110.00 },
+  { label: "E", longLabel: "Low E (6th)", pc: 4, freq: 82.41 },
 ];
 
 /* ====================================================================
@@ -42,6 +45,7 @@ const state = {
   accidental: "sharp",   // "sharp" | "flat"
   showNames: true,
   highlightPc: null,     // pitch class highlighted for study (or null)
+  audioEnabled: true,    // Web Audio playback on/off
 
   quiz: {
     active: false,
@@ -52,6 +56,7 @@ const state = {
     target: null,        // "name" mode: { stringIndex, fret, pc }
     findPc: null,        // "find" mode: pitch class being searched for
     findPositions: null, // "find" mode: Set of "stringIndex-fret" keys still to find
+    findRefPosition: null, // "find" mode: one { stringIndex, fret } to use for playback
     findTotal: 0,
     findFound: 0,
     locked: false,       // true briefly after an answer, while feedback shows
@@ -65,6 +70,7 @@ const fretboardEl = document.getElementById("fretboard");
 const toggleShowNamesEl = document.getElementById("toggleShowNames");
 const toggleFlatsEl = document.getElementById("toggleFlats");
 const toggleFrets24El = document.getElementById("toggleFrets24");
+const toggleSoundEl = document.getElementById("toggleSound");
 const highlightNoteSelectEl = document.getElementById("highlightNoteSelect");
 
 const modeButtonsEl = document.getElementById("modeButtons");
@@ -72,6 +78,7 @@ const scopeSelectEl = document.getElementById("scopeSelect");
 const startQuizBtnEl = document.getElementById("startQuizBtn");
 const stopQuizBtnEl = document.getElementById("stopQuizBtn");
 const quizPromptEl = document.getElementById("quizPrompt");
+const playTargetBtnEl = document.getElementById("playTargetBtn");
 const notePickerEl = document.getElementById("notePicker");
 const scoreValEl = document.getElementById("scoreVal");
 const streakValEl = document.getElementById("streakVal");
@@ -94,6 +101,53 @@ function noteNameAt(stringIndex, fret) {
 
 function cellKey(stringIndex, fret) {
   return stringIndex + "-" + fret;
+}
+
+function frequencyAt(stringIndex, fret) {
+  return STRINGS[stringIndex].freq * Math.pow(2, fret / 12);
+}
+
+/* ====================================================================
+   AUDIO ENGINE
+   Synthesizes each note with the Web Audio API — no audio files, no
+   libraries. One shared AudioContext is created lazily on first use
+   because browsers require a user gesture before audio can play.
+   ==================================================================== */
+let audioCtx = null;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+function playFrequency(freq) {
+  if (!state.audioEnabled || !freq) return;
+
+  const ctx = getAudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = "triangle"; // softer / more string-like than a sine or square
+  osc.frequency.value = freq;
+
+  const now = ctx.currentTime;
+  const attack = CONFIG.noteAttackSeconds;
+  const release = CONFIG.noteReleaseSeconds;
+
+  // quick attack, then an exponential decay so the note fades like a pluck
+  // instead of stopping abruptly (which would click/pop)
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(CONFIG.noteVolume, now + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + attack + release);
+
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + attack + release + 0.05);
 }
 
 /* ====================================================================
@@ -281,6 +335,10 @@ highlightNoteSelectEl.addEventListener("change", () => {
   refreshFretboardDisplay();
 });
 
+toggleSoundEl.addEventListener("change", () => {
+  state.audioEnabled = toggleSoundEl.checked;
+});
+
 /* ====================================================================
    QUIZ SETUP HANDLERS
    ==================================================================== */
@@ -316,6 +374,7 @@ function startQuiz() {
   startQuizBtnEl.hidden = true;
   stopQuizBtnEl.hidden = false;
   notePickerEl.hidden = state.quiz.mode !== "name";
+  playTargetBtnEl.hidden = false;
 
   nextQuestion();
 }
@@ -333,6 +392,7 @@ function stopQuiz() {
   startQuizBtnEl.hidden = false;
   stopQuizBtnEl.hidden = true;
   notePickerEl.hidden = true;
+  playTargetBtnEl.hidden = true;
 
   quizPromptEl.textContent = "Choose a mode and press Start Quiz.";
   feedbackMsgEl.textContent = "";
@@ -361,6 +421,7 @@ function nextQuestion() {
     // board (within the current scope) that matches it.
     const pc = Math.floor(Math.random() * 12);
     const positions = new Set();
+    let refPosition = null;
     const scopeStrings = state.quiz.scope === "all"
       ? STRINGS.map((_, i) => i)
       : [Number(state.quiz.scope)];
@@ -369,12 +430,14 @@ function nextQuestion() {
       for (let fret = 0; fret <= state.frets; fret++) {
         if (pitchClassAt(stringIndex, fret) === pc) {
           positions.add(cellKey(stringIndex, fret));
+          if (!refPosition) refPosition = { stringIndex, fret };
         }
       }
     });
 
     state.quiz.findPc = pc;
     state.quiz.findPositions = positions;
+    state.quiz.findRefPosition = refPosition;
     state.quiz.findTotal = positions.size;
     state.quiz.findFound = 0;
     updateQuizPromptText();
@@ -399,14 +462,18 @@ function updateQuizPromptText() {
    ANSWER HANDLING
    ==================================================================== */
 
-// clicking a fret on the board (used by "Find the Note" mode)
+// clicking a fret on the board: always hear its real pitch, and (during
+// "Find the Note" mode) check it as an answer too
 fretboardEl.addEventListener("click", (e) => {
   const btn = e.target.closest(".note-btn");
   if (!btn) return;
-  if (!state.quiz.active || state.quiz.mode !== "find" || state.quiz.locked) return;
 
   const stringIndex = Number(btn.dataset.string);
   const fret = Number(btn.dataset.fret);
+  playFrequency(frequencyAt(stringIndex, fret));
+
+  if (!state.quiz.active || state.quiz.mode !== "find" || state.quiz.locked) return;
+
   const key = cellKey(stringIndex, fret);
   const pc = pitchClassAt(stringIndex, fret);
 
@@ -454,6 +521,7 @@ notePickerEl.addEventListener("click", (e) => {
     state.quiz.score += CONFIG.pointsPerNamedCorrect;
     state.quiz.streak++;
     showFeedback(true, "Correct! " + noteNameAt(target.stringIndex, target.fret));
+    playFrequency(frequencyAt(target.stringIndex, target.fret));
     if (targetBtn) {
       targetBtn.classList.add("flash-correct");
       setTimeout(() => targetBtn.classList.remove("flash-correct"), 500);
@@ -470,6 +538,17 @@ notePickerEl.addEventListener("click", (e) => {
   updateStatsUI();
   refreshFretboardDisplay(); // reveals the target's note name (locked = true)
   setTimeout(nextQuestion, CONFIG.nextQuestionDelayMs);
+});
+
+// manual "play target note" button next to the quiz prompt
+playTargetBtnEl.addEventListener("click", () => {
+  if (!state.quiz.active) return;
+
+  if (state.quiz.mode === "name" && state.quiz.target) {
+    playFrequency(frequencyAt(state.quiz.target.stringIndex, state.quiz.target.fret));
+  } else if (state.quiz.mode === "find" && state.quiz.findRefPosition) {
+    playFrequency(frequencyAt(state.quiz.findRefPosition.stringIndex, state.quiz.findRefPosition.fret));
+  }
 });
 
 function showFeedback(isCorrect, text) {

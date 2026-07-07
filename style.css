@@ -174,13 +174,38 @@ button {
 
 .secondary-btn { background: transparent; }
 
-.quiz-prompt {
-  min-height: 24px;
+.quiz-prompt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 12px 0 10px;
+}
+
+.quiz-prompt {
+  flex: 1 1 auto;
+  min-height: 24px;
   font-size: 1.05rem;
   font-weight: 600;
   transition: opacity 0.15s ease;
 }
+
+.icon-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  background: var(--note-bg);
+  font-size: 1.1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.icon-btn:hover { background: var(--note-bg-hover); }
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn[hidden] { display: none; }
 
 .stats-row {
   display: flex;
